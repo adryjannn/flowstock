@@ -11,15 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('producers', function (Blueprint $table) {
+        Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->string('name', 255);
-            $table->text('phone')->nullable();
-            $table->text('email')->nullable();
-            $table->integer('delivery_time');
-            $table->bigInteger('order_time')->nullable();
+            $table->string('reference_number')->unique();
+            $table->string('name');
+            $table->text('description');
+            $table->integer('stock_available');
+            $table->foreignId('producer_id')->constrained()->onDelete('cascade');
+            $table->decimal('wholesale_price', 8, 2);
             $table->timestamps();
-            $table->softDeletes();
         });
     }
 
@@ -28,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        //
+        Schema::dropIfExists('products');
     }
 };

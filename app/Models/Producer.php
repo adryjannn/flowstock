@@ -10,16 +10,14 @@ class Producer extends Model
     use HasFactory;
     protected $fillable = [
         'name',
-        'full_name',
         'phone',
         'email',
         'delivery_time',
-        'time_in_stock',
-        'currency',
-        'logistic_minimum',
-        'logistic_minimum_alert',
-        'order_time',
-
-
+        'minimum_order_value',
     ];
+
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
 }
