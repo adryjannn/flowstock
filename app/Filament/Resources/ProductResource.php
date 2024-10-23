@@ -23,6 +23,16 @@ class ProductResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
+    public static function getNavigationLabel(): string
+    {
+        return 'Produkty';
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Katalog';
+    }
+
     public static function form(Form $form): Form
     {
         return $form

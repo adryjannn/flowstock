@@ -20,15 +20,21 @@ class ProducerResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-briefcase';
 
+    public static function getNavigationLabel(): string
+    {
+        return 'Producenci';
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Katalog';
+    }
+
     public static function getNavigationBadge(): ?string
     {
         return static::getModel()::count();
     }
 
-    public static function getNavigationLabel(): string
-    {
-        return __('Producers');
-    }
 
     public static function form(Form $form): Form
     {
