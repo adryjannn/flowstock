@@ -15,7 +15,8 @@ class ProducerPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('view_any_producer');
+        // return $user->can('view_any_producer');
+        return true;
     }
 
     /**
@@ -23,7 +24,8 @@ class ProducerPolicy
      */
     public function view(User $user, Producer $producer): bool
     {
-        return $user->can('view_producer');
+        // return $user->can('view_producer');
+        return true;
     }
 
     /**
@@ -31,7 +33,8 @@ class ProducerPolicy
      */
     public function create(User $user): bool
     {
-        return $user->can('create_producer');
+        // return $user->can('create_producer');
+        return true;
     }
 
     /**
@@ -39,7 +42,8 @@ class ProducerPolicy
      */
     public function update(User $user, Producer $producer): bool
     {
-        return $user->can('update_producer');
+        // return $user->can('update_producer');
+        return true;
     }
 
     /**
@@ -47,7 +51,8 @@ class ProducerPolicy
      */
     public function delete(User $user, Producer $producer): bool
     {
-        return $user->can('delete_producer');
+        // return $user->can('delete_producer');
+        return true;
     }
 
     /**
@@ -55,7 +60,8 @@ class ProducerPolicy
      */
     public function deleteAny(User $user): bool
     {
-        return $user->can('delete_any_producer');
+        // return $user->can('delete_any_producer');
+        return true;
     }
 
     /**
@@ -63,7 +69,8 @@ class ProducerPolicy
      */
     public function forceDelete(User $user, Producer $producer): bool
     {
-        return $user->can('force_delete_producer');
+        // return $user->can('force_delete_producer');
+        return true;
     }
 
     /**
@@ -71,7 +78,8 @@ class ProducerPolicy
      */
     public function forceDeleteAny(User $user): bool
     {
-        return $user->can('force_delete_any_producer');
+        // return $user->can('force_delete_any_producer');
+        return true;
     }
 
     /**
@@ -79,7 +87,8 @@ class ProducerPolicy
      */
     public function restore(User $user, Producer $producer): bool
     {
-        return $user->can('restore_producer');
+        // return $user->can('restore_producer');
+        return true;
     }
 
     /**
@@ -87,7 +96,8 @@ class ProducerPolicy
      */
     public function restoreAny(User $user): bool
     {
-        return $user->can('restore_any_producer');
+        // return $user->can('restore_any_producer');
+        return true;
     }
 
     /**
@@ -95,7 +105,8 @@ class ProducerPolicy
      */
     public function replicate(User $user, Producer $producer): bool
     {
-        return $user->can('replicate_producer');
+        // return $user->can('replicate_producer');
+        return true;
     }
 
     /**
@@ -103,6 +114,7 @@ class ProducerPolicy
      */
     public function reorder(User $user): bool
     {
-        return $user->can('reorder_producer');
+        // return $user->can('reorder_producer');
+        return true;
     }
 }

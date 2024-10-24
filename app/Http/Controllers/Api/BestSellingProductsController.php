@@ -13,8 +13,8 @@ class BestSellingProductsController extends Controller
         $bestSellers = OrderItem::select('product_id', DB::raw('SUM(quantity) as total_quantity'))
             ->groupBy('product_id')
             ->orderByDesc('total_quantity')
-            ->with('product') // Ładowanie produktów
-            ->take(10) // Top 10
+            ->with('product')
+            ->take(10)
             ->get();
 
         return response()->json($bestSellers);

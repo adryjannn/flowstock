@@ -11,9 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('producers', function (Blueprint $table) {
-            $table->dropColumn(['full_name','time_in_stock', 'currency', 'logistic_minimum', 'logistic_minimum_alert', 'order_time']);
-        });
+//        Schema::table('producers', function (Blueprint $table) {
+//            $table->dropColumn(['full_name','time_in_stock', 'currency', 'logistic_minimum', 'logistic_minimum_alert', 'order_time']);
+//        });
     }
 
     /**

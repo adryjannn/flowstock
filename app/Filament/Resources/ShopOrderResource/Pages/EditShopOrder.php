@@ -36,8 +36,7 @@ class EditShopOrder extends EditRecord
             'Content-Type' => 'application/xml',
         ])->put($endpointUrl, $xmlString);
 
-        // Output the response for debugging purposes
-        dd($response->body());
+
 
         if ($response->successful()) {
             Notification::make()
