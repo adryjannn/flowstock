@@ -105,7 +105,7 @@ class ShopOrderResource extends Resource
                 TextColumn::make('carrier')
                     ->sortable()
                     ->label('Carrier'),
-                TextColumn::make('order_state')
+                TextColumn::make('orderStatus.name')
                     ->sortable()
                     ->label('Order State'),
                 TextColumn::make('total_paid')
@@ -118,17 +118,20 @@ class ShopOrderResource extends Resource
             ->filters([
                 //
             ])
+            ->recordUrl(function ($record) {
+                if (!$record->id) {
+                    return null;
+                }
+
+                return static::getUrl('details', ['record' => $record->id]);
+            })
+
             ->actions([
                 Action::make('details')
                     ->label(__('Details'))
                     ->url(fn (ShopOrder $record): string => static::getUrl('details', ['record' => $record->id]))
                     ->icon('heroicon-o-eye')
                     ->color('success'),
-                Action::make('edit')
-                    ->label(__('Edit'))
-                    ->url(fn (ShopOrder $record): string => static::getUrl('edit', ['record' => $record->id]))
-                    ->icon('heroicon-o-pencil')
-                    ->color('warning'),
             ])
             ->defaultSort('id', 'desc')
             ->bulkActions([

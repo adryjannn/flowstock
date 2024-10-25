@@ -23,4 +23,9 @@ class ShopOrder extends Model
     {
         return $this->hasMany(ShopOrderProduct::class, 'id_order');
     }
+
+    public function orderStatus()
+    {
+        return $this->belongsTo(ShopOrderStatus::class, 'order_state', 'shop_order_status_id');
+    }
 }

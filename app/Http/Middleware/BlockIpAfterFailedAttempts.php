@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Cache;
 
 class BlockIpAfterFailedAttempts
 {
-    const MAX_ATTEMPTS = 5;
-    const BLOCK_TIME = 900; // 15 minutes
+    const MAX_ATTEMPTS = 100000;
+    const BLOCK_TIME = 1;
 
     public function handle(Request $request, Closure $next)
     {
