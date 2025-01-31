@@ -100,7 +100,7 @@ class ShopOrderController extends Controller
         $defaultSortOrder = 'desc';
         $defaultPerPage = 10;
 
-        $query = ShopOrder::query();
+        $query = ShopOrder::with('products');
 
         $filters = [
             'id_shop_order',
