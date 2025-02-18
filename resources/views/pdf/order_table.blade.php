@@ -34,7 +34,7 @@
 <div class="header">
     <h1>Zamówienie #{{ $order->id }}</h1>
     <p>Producent: {{ $producer_name }}</p>
-    <p>Status: {{ ucfirst($order->status) }}</p>
+    <p>Status: {{ ucfirst($order->orderState->name ?? 'Nieznany') }}</p>
     <p>Wartość Całkowita: {{ number_format($order->total_value, 2) }} PLN</p>
     <p>Utworzono: {{ $order->created_at->format('Y-m-d H:i') }}</p>
 </div>
@@ -53,12 +53,12 @@
     </tr>
     </thead>
     <tbody>
-    @foreach($productsForOrder as $item)
+    @foreach($orderItems as $item)
         <tr>
-            <td>{{ $item['name'] }}</td>
-{{--            <td>{{ $item['quantity'] }}</td>--}}
-{{--            <td>{{ number_format($item['unit_price'], 2) }}</td>--}}
-{{--            <td>{{ number_format($item['quantity'] * $item['unit_price'], 2) }}</td>--}}
+            <td>{{ $item->product->name ?? 'Nieznany produkt' }}</td>
+            <td>{{ $item->quantity }}</td>
+            <td>{{ number_format($item->unit_price, 2) }}</td>
+            <td>{{ number_format($item->quantity * $item->unit_price, 2) }}</td>
         </tr>
     @endforeach
     </tbody>

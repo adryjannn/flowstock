@@ -13,9 +13,11 @@ use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 use Exception;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
 class CreateOrderToProducer extends Page
@@ -40,25 +42,43 @@ class CreateOrderToProducer extends Page
         $this->productsForOrder = $this->getProductsForOrder($this->producer->id);
     }
 
-    public function getProductsForOrder($producerId)
+    public function getProductsForOrder(int $producerId): array
     {
-        return Product::where('producer_id', $producerId)
-            ->leftJoin('shop_orders_product', 'products.reference_number', '=', 'shop_orders_product.product_code')
-            ->select('products.*', DB::raw('COALESCE(SUM(shop_orders_product.quantity), 0) as sold_quantity'))
-            ->groupBy('products.id')
-            ->get()
-            ->map(function ($product) {
-                return [
+        try {
+            if (!is_numeric($producerId) || $producerId <= 0) {
+                Log::warning("Invalid producer ID provided: {$producerId}");
+                return [];
+            }
+
+            return Product::query()
+                ->where('producer_id', $producerId)
+                ->leftJoin('shop_orders_product as sop', 'products.reference_number', '=', 'sop.product_code')
+                ->select([
+                    'products.id',
+                    'products.name',
+                    'products.reference_number',
+                    'products.stock_available',
+                    DB::raw('COALESCE(SUM(sop.quantity), 0) as sold_quantity')
+                ])
+                ->groupBy('products.id', 'products.name', 'products.reference_number', 'products.stock_available')
+                ->get()
+                ->map(fn ($product) => [
                     'id' => $product->id,
                     'name' => $product->name,
                     'reference_number' => $product->reference_number,
-                    'stock_available' => $product->stock_available,
-                    'sold_quantity' => $product->sold_quantity,
+                    'stock_available' => (int) $product->stock_available,
+                    'sold_quantity' => (int) $product->sold_quantity,
                     'expected_quantity' => 0,
                     'selected' => false,
-                ];
-            })->toArray();
+                ])
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::error("Error fetching products for producer ID {$producerId}: " . $e->getMessage());
+            return [];
+        }
     }
+
+
 
     public function toggleSelectAll()
     {
@@ -82,153 +102,156 @@ class CreateOrderToProducer extends Page
     }
 
 
-    public function filterData()
+    public function filterData(): void
     {
-        if (!empty($this->searchTerm)) {
-            $this->productsForOrder = array_filter($this->productsForOrder, function ($product) {
-                return stripos($product['name'], $this->searchTerm) !== false || stripos($product['reference_number'], $this->searchTerm) !== false;
-            });
-        } else {
-            $this->productsForOrder = $this->getProductsForOrder($this->producer->id);
-        }
-    }
-
-    public function generateOrder()
-    {
-        $selectedProducts = array_filter($this->productsForOrder, function ($product) {
-            return $product['selected'] === true && $product['expected_quantity'] > 0;
-        });
-
-        $productsWithZeroQuantity = array_filter($this->productsForOrder, function ($product) {
-            return $product['selected'] === true && $product['expected_quantity'] <= 0;
-        });
-
-        if (count($productsWithZeroQuantity) > 0) {
-            Notification::make()
-                ->title('Błąd ilości')
-                ->danger()
-                ->body('Niektóre zaznaczone produkty mają ilość równą 0. Zaktualizuj ilości przed generowaniem zamówienia.')
-                ->send();
+        if (empty($this->producer) || empty($this->producer->id)) {
+            $this->productsForOrder = [];
             return;
         }
 
-        if (count($selectedProducts) === 0) {
+        if (empty($this->searchTerm) || !is_string($this->searchTerm)) {
+            $this->productsForOrder = $this->getProductsForOrder($this->producer->id);
+            return;
+        }
+
+        $searchTerm = trim(mb_strtolower($this->searchTerm));
+        $this->productsForOrder = array_values(array_filter($this->productsForOrder, function ($product) use ($searchTerm) {
+            return stripos(mb_strtolower($product['name']), $searchTerm) !== false
+                || stripos(mb_strtolower($product['reference_number']), $searchTerm) !== false;
+        }));
+    }
+
+
+    public function generateOrder()
+    {
+        $selectedProducts = array_filter($this->productsForOrder, fn($product) => $product['selected'] && $product['expected_quantity'] > 0);
+
+        if (empty($selectedProducts)) {
             Notification::make()
-                ->title('Brak wybranych produktów')
-                ->warning()
-                ->body('Nie wybrano żadnych produktów do zamówienia.')
+                ->title('Błąd')
+                ->danger()
+                ->body('Nie wybrano żadnych produktów lub ich ilość jest równa 0. Zaktualizuj ilości przed generowaniem zamówienia.')
                 ->send();
             return;
         }
 
         DB::beginTransaction();
-
         try {
             $order = Order::create([
                 'producer_id' => $this->producer->id,
-                'note' => '',
                 'status' => 'pending',
                 'total_value' => 0,
             ]);
 
-            $totalValue = 0;
+            $totalValue = collect($selectedProducts)->sum(function ($product) use ($order) {
+                $productModel = Product::findOrFail($product['id']);
+                $unitPrice = $productModel->wholesale_price ?? 0;
 
-            foreach ($selectedProducts as $product) {
-                $productModel = Product::find($product['id']);
-                if (!$productModel) {
-                    throw new Exception("Produkt o ID {$product['id']} nie został znaleziony.");
-                }
-
-                $unitPrice = $productModel->unit_price ?? 0;
-
-                $orderItem = OrderItem::create([
+                OrderItem::create([
                     'order_id' => $order->id,
                     'product_id' => $product['id'],
                     'quantity' => $product['expected_quantity'],
                     'unit_price' => $unitPrice,
                 ]);
 
-                $totalValue += $orderItem->quantity * $orderItem->unit_price;
-                $productModel->decrement('stock_available', $orderItem->quantity);
-            }
+                $productModel->decrement('stock_available', $product['expected_quantity']);
+                return $product['expected_quantity'] * $unitPrice;
+            });
 
             $order->update(['total_value' => $totalValue]);
 
-
-            $pdfFilePath = $this->generatePdfFile($order, $selectedProducts);
-            $excelFilePath = $this->generateExcelFile($order, $selectedProducts);
-
-            if ($pdfFilePath && $excelFilePath) {
-                $order->update([
-                    'pdf_file' => $pdfFilePath,
-                    'xls_file' => $excelFilePath,
-                ]);
-            } else {
-
-                Notification::make()
-                    ->title('Zamówienie wygenerowane, ale nie udało się utworzyć plików PDF lub Excel.')
-                    ->warning()
-                    ->body('Zamówienie zostało pomyślnie utworzone, ale wystąpiły problemy z generowaniem plików.')
-                    ->send();
+            foreach (['pdf' => 'generatePdfFile', 'xls' => 'generateExcelFile'] as $key => $method) {
+                if ($filePath = $this->$method($order, $selectedProducts)) {
+                    $order->update(["{$key}_file" => $filePath]);
+                }
             }
 
-
             DB::commit();
-
-            Notification::make()
-                ->title('Zamówienie wygenerowane')
-                ->success()
-                ->body('Zamówienie zostało pomyślnie wygenerowane.')
-                ->send();
-
+            Notification::make()->title('Zamówienie wygenerowane')->success()->body('Zamówienie zostało pomyślnie wygenerowane.')->send();
             return redirect()->to(OrderResource::getUrl('details', ['record' => $order->id]));
         } catch (Exception $e) {
             DB::rollBack();
-
-            Notification::make()
-                ->title('Błąd')
-                ->danger()
-                ->body('Wystąpił problem podczas generowania zamówienia: ' . $e->getMessage())
-                ->send();
+            Notification::make()->title('Błąd')->danger()->body('Wystąpił problem: ' . $e->getMessage())->send();
             return;
         }
     }
 
 
-    public function generatePdfFile(Order $order, $selectedProducts)
+
+    public function generatePdfFile(Order $order)
     {
-        $pdf = Pdf::loadView('pdf.order_table', [
-            'productsForOrder' => $selectedProducts,
-            'producer_name' => $this->producer->name,
-            'order' => $order,
-        ]);
+        try {
+            if (!$order || !$order->producer || !$order->producer->name) {
+                Log::warning('Nie można wygenerować PDF - brak zamówienia lub producenta.');
+                return false;
+            }
 
-        $fileName = strtolower(str_replace(" ", "_", $this->producer->name)) . '_order_' . now()->format('Y_m_d_H_i_s') . '.pdf';
-        $path = 'pdf/orders/' . $fileName;
+            $orderItems = $order->items()->with('product')->get();
 
-        if (!Storage::disk('public')->exists('pdf/orders')) {
+            if ($orderItems->isEmpty()) {
+                Log::warning('Nie można wygenerować PDF - brak produktów w zamówieniu.');
+                return false;
+            }
+
+            $pdf = Pdf::loadView('pdf.order_table', [
+                'orderItems' => $orderItems,
+                'producer_name' => $order->producer->name,
+                'order' => $order,
+            ]);
+
+            $fileName = Str::slug($order->producer->name) . '_order_' . now()->format('Y_m_d_H_i_s') . '.pdf';
+            $path = 'pdf/orders/' . $fileName;
             Storage::disk('public')->makeDirectory('pdf/orders');
-        }
-        $pdf->save(storage_path('app/public/' . $path));
+            $pdf->save(storage_path('app/public/' . $path));
 
-        return Storage::disk('public')->exists($path) ? $path : false;
+            if (!Storage::disk('public')->exists($path)) {
+                Log::error('Błąd zapisu pliku PDF: ' . $path);
+                return false;
+            }
+
+            return $path;
+        } catch (Exception $e) {
+            Log::error('Błąd generowania PDF: ' . $e->getMessage());
+            return false;
+        }
     }
 
 
 
-    public function generateExcelFile(Order $order, $selectedProducts)
+    public function generateExcelFile(Order $order)
     {
-        $baseFileName = strtolower(str_replace(" ", "_", $this->producer->name)) . '_order_' . now()->format('Y_m_d_H_i_s') . '.xlsx';
-        $filePath = 'excel/orders/' . $baseFileName;
-        $export = new OrderExport($selectedProducts);
+        try {
+            if (!$order->exists || !$order->producer?->name) {
+                Log::warning('Nie można wygenerować pliku Excel - brak zamówienia lub producenta.');
+                return false;
+            }
 
-        if (!Storage::disk('public')->exists('excel/orders')) {
+            $orderItems = $order->items()->with('product')->get();
+
+            if ($orderItems->isEmpty()) {
+                Log::warning('Nie można wygenerować pliku Excel - brak produktów w zamówieniu.');
+                return false;
+            }
+
+            $fileName = Str::slug($order->producer->name) . '_order_' . now()->format('Y_m_d_H_i_s') . '.xlsx';
+            $filePath = 'excel/orders/' . $fileName;
+
             Storage::disk('public')->makeDirectory('excel/orders');
+
+            Excel::store(new OrderExport($order), $filePath, 'public');
+
+            if (!Storage::disk('public')->exists($filePath)) {
+                Log::error('Błąd zapisu pliku Excel: ' . $filePath);
+                return false;
+            }
+
+            return $filePath;
+        } catch (Exception $e) {
+            Log::error('Błąd generowania pliku Excel: ' . $e->getMessage());
+            return false;
         }
-
-        Excel::store($export, $filePath, 'public');
-
-        return Storage::disk('public')->exists($filePath) ? $filePath : false;
     }
+
+
 
 }

@@ -30,52 +30,9 @@ class ShopOrderResource extends Resource
     {
         return 'Katalog';
     }
-
-    public static function form(Form $form): Form
+    public static function canCreate(): bool
     {
-        return $form
-            ->schema([
-                Forms\Components\TextInput::make('id_shop_order')
-                    ->label('Shop Order ID')
-                    ->required(),
-                Forms\Components\TextInput::make('order_reference')
-                    ->label('Order Reference')
-                    ->required(),
-                Forms\Components\Select::make('payment_type')
-                    ->label('Payment Type')
-                    ->options([
-                        'credit_card' => 'Credit Card',
-                        'paypal' => 'PayPal',
-                        'bank_transfer' => 'Bank Transfer',
-                    ])
-                    ->required(),
-                Forms\Components\TextInput::make('carrier')
-                    ->label('Carrier')
-                    ->required(),
-                Forms\Components\Select::make('order_state')
-                    ->label('Order State')
-                    ->options([
-                        'pending' => 'Pending',
-                        'processing' => 'Processing',
-                        'completed' => 'Completed',
-                        'cancelled' => 'Cancelled',
-                    ])
-                    ->required(),
-                Forms\Components\TextInput::make('total_paid')
-                    ->label('Total Paid')
-                    ->numeric()
-                    ->required(),
-                Forms\Components\TextInput::make('total_shipping')
-                    ->label('Total Shipping')
-                    ->numeric()
-                    ->required(),
-                Forms\Components\DatePicker::make('created_at')
-                    ->label('Created At')
-                    ->disabled(),
-                Forms\Components\DatePicker::make('updated_at')
-                    ->label('Updated At')
-                    ->disabled(),
-            ]);
+        return false;
     }
 
 
@@ -91,29 +48,48 @@ class ShopOrderResource extends Resource
             ->columns([
                 TextColumn::make('id')
                     ->sortable()
-                    ->label('ID'),
+                    ->label(__('ID')),
+
                 TextColumn::make('id_shop_order')
                     ->sortable()
-                    ->label('Shop Order ID'),
+                    ->label(__('ID zamówienia w sklepie')),
+
                 TextColumn::make('order_reference')
                     ->sortable()
-                    ->label('Order Reference'),
+                    ->label(__('Numer referencyjny zamówienia')),
+
                 TextColumn::make('payment_type')
                     ->sortable()
-                    ->label('Payment Type')
-                    ->toggleable(),
+                    ->toggleable()
+                    ->label(__('Typ płatności')),
+
                 TextColumn::make('carrier')
                     ->sortable()
-                    ->label('Carrier'),
+                    ->label(__('Przewoźnik')),
+
                 TextColumn::make('orderStatus.name')
                     ->sortable()
-                    ->label('Order State'),
+                    ->label(__('Status zamówienia'))
+                    ->badge() // Dodaje kolorowe oznaczenie statusu
+
+                    ->color(fn ($record) => match ($record->orderStatus->name ?? '') {
+                        'Oczekujące' => 'warning',
+                        'Zrealizowane' => 'success',
+                        'Anulowane' => 'danger',
+                        default => 'gray',
+                    }),
+
                 TextColumn::make('total_paid')
                     ->sortable()
-                    ->label('Total paid'),
+                    ->label(__('Łączna kwota'))
+                    ->prefix('PLN')
+                    ->formatStateUsing(fn ($state) => number_format($state, 2, ',', ' ') . ' zł'),
+
                 TextColumn::make('total_shipping')
                     ->sortable()
-                    ->label('Total shipping')
+                    ->label(__('Koszt wysyłki'))
+                    ->prefix('PLN')
+                    ->formatStateUsing(fn ($state) => number_format($state, 2, ',', ' ') . ' zł'),
             ])
             ->filters([
                 //
@@ -122,22 +98,21 @@ class ShopOrderResource extends Resource
                 if (!$record->id) {
                     return null;
                 }
-
                 return static::getUrl('details', ['record' => $record->id]);
             })
-
             ->actions([
                 Action::make('details')
-                    ->label(__('Details'))
+                    ->label(__('Szczegóły'))
                     ->url(fn (ShopOrder $record): string => static::getUrl('details', ['record' => $record->id]))
                     ->icon('heroicon-o-eye')
                     ->color('success'),
             ])
             ->defaultSort('id', 'desc')
             ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make(),
+                Tables\Actions\DeleteBulkAction::make()->label(__('Usuń zaznaczone')),
             ]);
     }
+
 
     public static function getRelations(): array
     {

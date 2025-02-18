@@ -8,21 +8,22 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 
 class OrderExport implements FromCollection, WithHeadings
 {
-    protected $selectedProducts;
+    protected Order $order;
 
-    public function __construct($selectedProducts)
+    public function __construct(Order $order)
     {
-        $this->selectedProducts = $selectedProducts;
+        $this->order = $order;
     }
 
     public function collection()
     {
-        return collect($this->selectedProducts)->map(function ($item) {
+        return $this->order->items->map(function ($item) {
             return [
-                'Produkt' => $item['name'],
-                'Ilość' => $item['expected_quantity'],
-              //  'Cena za sztukę (PLN)' => $item['unit_price'],
-              //  'Cena całkowita (PLN)' => $item['quantity'] * $item['unit_price'],
+                'Produkt' => $item->product->name ?? 'Nieznany produkt',
+                'Kod produktu' => $item->product->reference_number ?? 'Brak kodu',
+                'Ilość' => (int) $item->quantity,
+                'Cena za sztukę (PLN)' => number_format($item->unit_price ?? 0, 2, '.', ''),
+                'Cena całkowita (PLN)' => number_format($item->quantity * ($item->unit_price ?? 0), 2, '.', ''),
             ];
         });
     }
@@ -31,6 +32,7 @@ class OrderExport implements FromCollection, WithHeadings
     {
         return [
             'Produkt',
+            'Kod produktu',
             'Ilość',
             'Cena za sztukę (PLN)',
             'Cena całkowita (PLN)',

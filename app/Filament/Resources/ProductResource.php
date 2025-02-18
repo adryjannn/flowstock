@@ -6,9 +6,14 @@ use App\Filament\Resources\ProductResource\Pages;
 use App\Filament\Resources\ProductResource\RelationManagers;
 use App\Models\Product;
 use Filament\Forms;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Tabs;
+use Filament\Forms\Components\Tabs\Tab;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -37,27 +42,49 @@ class ProductResource extends Resource
     {
         return $form
             ->schema([
-                TextInput::make('name')
-                    ->label(__('Name'))
-                    ->required(),
-                TextInput::make('reference_number')
-                    ->label(__('Reference Number'))
-                    ->required(),
-                Textarea::make('description')
-                    ->label(__('Description')),
-                TextInput::make('stock_available')
-                    ->label(__('Stock Available'))
-                    ->numeric()
-                    ->required(),
-                Select::make('producer_id')
-                    ->label(__('Producer'))
-                    ->relationship('producer', 'name')
-                    ->searchable()
-                    ->required(),
-                TextInput::make('wholesale_price')
-                    ->label(__('Wholesale Price'))
-                    ->numeric()
-                    ->required()
+                Section::make('Informacje podstawowe')
+                    ->description('Podstawowe dane produktu')
+                    ->schema([
+                        TextInput::make('name')
+                            ->label('Nazwa produktu')
+                            ->required()
+                            ->placeholder('Wpisz nazwę produktu')
+                            ->helperText('Pełna nazwa produktu, którą zobaczą klienci.'),
+
+                        TextInput::make('reference_number')
+                            ->label('Numer referencyjny')
+                            ->required()
+                            ->placeholder('Unikalny numer produktu')
+                            ->helperText('Unikalny kod do identyfikacji produktu.'),
+                        Textarea::make('description')
+                            ->label('Opis produktu')
+                            ->placeholder('Dodaj opis produktu')
+                            ->helperText('Krótki opis produktu widoczny w sklepie.'),
+                    ]),
+
+                Section::make('Dostępność, producent i cena')
+                    ->schema([
+                        TextInput::make('stock_available')
+                            ->label('Dostępna ilość')
+                            ->numeric()
+                            ->required()
+                            ->suffix('szt.')
+                            ->helperText('Ilość dostępna na magazynie.'),
+
+                        Select::make('producer_id')
+                            ->label('Producent')
+                            ->relationship('producer', 'name')
+                            ->searchable()
+                            ->required()
+                            ->placeholder('Wybierz producenta')
+                            ->helperText('Producent produktu.'),
+                        TextInput::make('wholesale_price')
+                            ->label('Cena hurtowa')
+                            ->numeric()
+                            ->required()
+                            ->prefix('PLN')
+                            ->helperText('Cena hurtowa za jedną sztukę produktu.'),
+                    ]),
             ]);
     }
 
@@ -65,28 +92,58 @@ class ProductResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('id')->label(__('ID')),
-                TextColumn::make('reference_number')->label(__('Reference Number')),
-                TextColumn::make('name')->label(__('Name')),
-                TextColumn::make('description')->label(__('Description')),
-                TextColumn::make('stock_available')->label(__('Stock Available')),
-                TextColumn::make('producer.name')->label(__('Producer')),
-                TextColumn::make('wholesale_price')->label(__('Wholesale Price')),
-                TextColumn::make('created_at')->dateTime()->label(__('Date Added')),
-                TextColumn::make('updated_at')->dateTime()->label(__('Date Updated')),
+                TextColumn::make('id')
+                    ->label('ID')
+                    ->sortable(),
+
+                TextColumn::make('reference_number')
+                    ->label('Numer referencyjny')
+                    ->searchable(),
+
+                TextColumn::make('name')
+                    ->label('Nazwa produktu')
+                    ->searchable(),
+
+                TextColumn::make('description')
+                    ->label('Opis produktu')
+                    ->limit(50), // Skrócony opis w tabeli
+
+                TextColumn::make('stock_available')
+                    ->label('Dostępna ilość')
+                    ->sortable()
+                    ->suffix(' szt.'), // Dodaje jednostkę
+
+                TextColumn::make('producer.name')
+                    ->label('Producent')
+                    ->sortable()
+                    ->searchable(),
+
+                TextColumn::make('wholesale_price')
+                    ->label('Cena hurtowa')
+                    ->sortable()
+                    ->prefix('PLN'),
             ])
             ->filters([
-                //
+                SelectFilter::make('producer_id')
+                    ->label('Producent')
+                    ->relationship('producer', 'name')
+                    ->searchable(),
+
+                Filter::make('stock_available')
+                    ->label('Dostępne produkty')
+                    ->query(fn ($query) => $query->where('stock_available', '>', 0)),
+
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->label('Edytuj'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()->label('Usuń zaznaczone'),
                 ]),
             ]);
     }
+
 
     public static function getRelations(): array
     {
