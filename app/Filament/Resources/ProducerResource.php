@@ -139,10 +139,45 @@ class ProducerResource extends Resource
                     ->prefix('PLN'),
             ])
             ->filters([
-                Filter::make('minimum_order_value')
-                    ->label(__('Tylko producenci z minimalną wartością zamówienia'))
-                    ->query(fn ($query) => $query->whereNotNull('minimum_order_value')),
+                Filter::make('minimum_order_value_range')
+                    ->form([
+                        TextInput::make('min_value')
+                            ->label(__('Minimalna wartość zamówienia od'))
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('PLN'),
+
+                        TextInput::make('max_value')
+                            ->label(__('Minimalna wartość zamówienia do'))
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('PLN'),
+                    ])
+                    ->query(fn ($query, $data) => $query
+                        ->when($data['min_value'], fn ($q) => $q->where('minimum_order_value', '>=', $data['min_value']))
+                        ->when($data['max_value'], fn ($q) => $q->where('minimum_order_value', '<=', $data['max_value']))
+                    ),
+
+                Filter::make('delivery_time_range')
+                    ->form([
+                        TextInput::make('min_days')
+                            ->label(__('Czas realizacji od'))
+                            ->numeric()
+                            ->minValue(1)
+                            ->suffix(__(' dni')),
+
+                        TextInput::make('max_days')
+                            ->label(__('Czas realizacji do'))
+                            ->numeric()
+                            ->minValue(1)
+                            ->suffix(__(' dni')),
+                    ])
+                    ->query(fn ($query, $data) => $query
+                        ->when($data['min_days'], fn ($q) => $q->where('delivery_time', '>=', $data['min_days']))
+                        ->when($data['max_days'], fn ($q) => $q->where('delivery_time', '<=', $data['max_days']))
+                    ),
             ])
+
             ->actions([
                 Tables\Actions\EditAction::make()->label(__('Edytuj')),
             ])

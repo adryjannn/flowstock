@@ -7,6 +7,7 @@ use App\Models\ShopOrderProduct; // Model ShopOrderProduct
 use Filament\Pages\Page;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 
 class PotentialOrders extends Page implements Tables\Contracts\HasTable
@@ -23,6 +24,13 @@ class PotentialOrders extends Page implements Tables\Contracts\HasTable
     {
         return 'Zamówienia';
     }
+
+    public function getTitle(): string|Htmlable
+    {
+        return 'Stwórz zamówienie';
+    }
+
+
 
     use Tables\Concerns\InteractsWithTable;
 

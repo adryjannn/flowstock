@@ -11,6 +11,7 @@ use App\Models\Producer;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -24,6 +25,11 @@ class CreateOrderToProducer extends Page
 {
     protected static string $view = 'filament.pages.create-order-to-producer';
     protected static bool $shouldRegisterNavigation = false;
+
+    public function getTitle(): string|Htmlable
+    {
+        return "Wybierz produkty do zamówienia";
+    }
 
     public array $productsForOrder = [];
     public ?Producer $producer = null;
@@ -124,22 +130,30 @@ class CreateOrderToProducer extends Page
 
     public function generateOrder()
     {
-        $selectedProducts = array_filter($this->productsForOrder, fn($product) => $product['selected'] && $product['expected_quantity'] > 0);
+        $selectedProducts = array_filter(
+            $this->productsForOrder,
+            fn($product) => $product['selected'] && $product['expected_quantity'] > 0
+        );
 
         if (empty($selectedProducts)) {
             Notification::make()
                 ->title('Błąd')
                 ->danger()
-                ->body('Nie wybrano żadnych produktów lub ich ilość jest równa 0. Zaktualizuj ilości przed generowaniem zamówienia.')
+                ->body(
+                    'Nie wybrano żadnych produktów lub ich ilość jest równa 0. ' .
+                    'Zaktualizuj ilości przed generowaniem zamówienia.'
+                )
                 ->send();
-            return;
+
+            return false;
         }
+
 
         DB::beginTransaction();
         try {
             $order = Order::create([
                 'producer_id' => $this->producer->id,
-                'status' => 'pending',
+                'status' => 1,
                 'total_value' => 0,
             ]);
 
@@ -156,24 +170,46 @@ class CreateOrderToProducer extends Page
 
                 $productModel->decrement('stock_available', $product['expected_quantity']);
                 return $product['expected_quantity'] * $unitPrice;
+
             });
 
             $order->update(['total_value' => $totalValue]);
 
-            foreach (['pdf' => 'generatePdfFile', 'xls' => 'generateExcelFile'] as $key => $method) {
-                if ($filePath = $this->$method($order, $selectedProducts)) {
+            $formats = [
+                'pdf' => 'generatePdfFile',
+                'xls' => 'generateExcelFile',
+            ];
+
+            foreach ($formats as $key => $method) {
+                $filePath = $this->$method($order, $selectedProducts);
+
+                if ($filePath) {
                     $order->update(["{$key}_file" => $filePath]);
                 }
             }
 
             DB::commit();
-            Notification::make()->title('Zamówienie wygenerowane')->success()->body('Zamówienie zostało pomyślnie wygenerowane.')->send();
-            return redirect()->to(OrderResource::getUrl('details', ['record' => $order->id]));
+            Notification::make()
+                ->title('Zamówienie wygenerowane')
+                ->success()
+                ->body('Zamówienie zostało pomyślnie wygenerowane.')
+                ->send();
+
+            return redirect()->to(
+                OrderResource::getUrl('details', ['record' => $order->id])
+            );
         } catch (Exception $e) {
             DB::rollBack();
-            Notification::make()->title('Błąd')->danger()->body('Wystąpił problem: ' . $e->getMessage())->send();
-            return;
+
+            Notification::make()
+                ->title('Błąd')
+                ->danger()
+                ->body('Wystąpił problem: ' . $e->getMessage())
+                ->send();
+
+            return false;
         }
+
     }
 
 
@@ -227,7 +263,6 @@ class CreateOrderToProducer extends Page
             }
 
             $orderItems = $order->items()->with('product')->get();
-
             if ($orderItems->isEmpty()) {
                 Log::warning('Nie można wygenerować pliku Excel - brak produktów w zamówieniu.');
                 return false;
@@ -237,7 +272,6 @@ class CreateOrderToProducer extends Page
             $filePath = 'excel/orders/' . $fileName;
 
             Storage::disk('public')->makeDirectory('excel/orders');
-
             Excel::store(new OrderExport($order), $filePath, 'public');
 
             if (!Storage::disk('public')->exists($filePath)) {

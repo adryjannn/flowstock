@@ -37,12 +37,9 @@ class ShopOrderController extends Controller
 
         try {
             DB::beginTransaction();
-
             $shopOrder = ShopOrder::where('id_shop_order', $validatedData['id_shop_order'])->first();
-
             if ($shopOrder) {
                 $shopOrder->products()->delete();
-
                 $shopOrder->update([
                     'order_reference' => $validatedData['order_reference'],
                     'payment_type' => $validatedData['payment_type'],
@@ -81,7 +78,6 @@ class ShopOrderController extends Controller
                 'order_id' => $shopOrder->id,
                 'updated' => $shopOrder->wasRecentlyCreated ? false : true
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -127,8 +123,7 @@ class ShopOrderController extends Controller
         $orders = $query->orderBy(
             $request->query('sort_by', $defaultSortBy),
             $request->query('sort_order', $defaultSortOrder)
-        )
-            ->paginate($request->query('per_page', $defaultPerPage));
+        )->paginate($request->query('per_page', $defaultPerPage));
 
         return response()->json([
             'current_page' => $orders->currentPage(),
@@ -141,16 +136,12 @@ class ShopOrderController extends Controller
 
     public function updateOrderStatus(Request $request)
     {
-
         $request->validate([
             'id' => 'required|integer|exists:shop_orders,id',
             'order_state' => 'required|string',
         ]);
 
-
         $order = ShopOrder::find($request->input('id'));
-
-
         $order->order_state = $request->input('order_state');
         $order->save();
 
