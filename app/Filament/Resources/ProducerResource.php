@@ -5,85 +5,185 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ProducerResource\Pages;
 use App\Filament\Resources\ProducerResource\RelationManagers;
 use App\Models\Producer;
-use Filament\Forms;
 use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Forms\Components\TextInput;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Actions\EditAction;
+use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Model;
+
 
 class ProducerResource extends Resource
 {
-    const CURRENCIES = [
-        'PLN' => 'PLN',
-        'EUR' => 'EUR',
-        'USD' => 'USD',
-        'CNY' => 'CNY'
-    ];
     protected static ?string $model = Producer::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-briefcase';
+
+    public static function getNavigationLabel(): string
+    {
+        return 'Producenci';
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return 'Katalog';
+    }
+
 
     public static function getNavigationBadge(): ?string
     {
         return static::getModel()::count();
     }
 
-    public static function getNavigationLabel(): string
-    {
-        return __('Producers');
-    }
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Section::make(__('Required*'))->schema([
-                    TextInput::make('name')->required()->label(__('Name')),
-                    TextInput::make('full_name')->nullable()->label(__('Full name')),
-                    TextInput::make('phone')->nullable()->label(__('Phone')),
-                    TextInput::make('email')->nullable()->email()->label(__('Email')),
-                    TextInput::make('delivery_time')->required()->label(__('Order processing time'))->integer(),
-                    TextInput::make('logistic_minimum')->nullable()->label(__('Logistic minimum net')),
-                    TextInput::make('time_in_stock_max')->required()->label(__('Time in stock max'))->integer(),
-                    TextInput::make('time_in_stock_min')->required()->label(__('Time in stock min'))->integer(),
-                ])->columns(2)->columnSpan(2)
+                Section::make(__('Dane podstawowe'))
+                    ->description(__('Podstawowe informacje o producencie'))
+                    ->schema([
+                        TextInput::make('name')
+                            ->label(__('Nazwa producenta'))
+                            ->required()
+                            ->maxLength(255)
+                            ->placeholder(__('Wpisz nazwę producenta')),
+
+                        TextInput::make('phone')
+                            ->label(__('Telefon kontaktowy'))
+                            ->tel()
+                            ->telRegex('/^\+?[0-9\s\-\(\)]{7,20}$/')
+                            ->nullable()
+                            ->maxLength(20)
+                            ->placeholder(__('Podaj numer telefonu'))
+                            ->helperText(__('Numer telefonu w formacie międzynarodowym')),
+
+                        TextInput::make('email')
+                            ->label(__('Adres e-mail'))
+                            ->nullable()
+                            ->email()
+                            ->maxLength(255)
+                            ->placeholder(__('Wpisz adres e-mail'))
+                            ->helperText(__('Oficjalny adres e-mail producenta')),
+                    ])
+                    ->columns(2)
+                    ->columnSpan(2),
+
+                Section::make(__('Warunki współpracy'))
+                    ->description(__('Dodatkowe warunki związane z dostawami'))
+                    ->schema([
+                        TextInput::make('delivery_time')
+                            ->label(__('Czas przetwarzania zamówienia'))
+                            ->required()
+                            ->integer()
+                            ->minValue(1)
+                            ->placeholder(__('Podaj liczbę dni'))
+                            ->helperText(__('Liczba dni potrzebna na realizację zamówienia')),
+
+                        TextInput::make('minimum_order_value')
+                            ->label(__('Minimalna wartość zamówienia'))
+                            ->nullable()
+                            ->numeric()
+                            ->minValue(1)
+                            ->prefix('PLN')
+                            ->placeholder(__('Podaj minimalną wartość'))
+                            ->helperText(__('Minimalna wartość zamówienia w złotówkach')),
+                    ])
+                    ->columns(2)
+                    ->columnSpan(2),
             ]);
     }
 
-    /**
-     * @throws \Exception
-     */
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                TextColumn::make('id')->searchable()->sortable()->label(__('ID')),
-                TextColumn::make('name')->searchable()->sortable()->label(__('Name')),
-                TextColumn::make('full_name')->searchable()->sortable()->toggleable()->label(__('Full name')),
-                TextColumn::make('email')->searchable()->sortable()->toggleable()->toggleable()->label(__('Email')),
-                TextColumn::make('phone')->searchable()->toggleable()->label(__('Phone')),
-                TextColumn::make('delivery_time')->searchable()->sortable()->toggleable()->label(__('Delivery time')),
-                TextColumn::make('logistic_minimum')->searchable()->sortable()->toggleable()->label(__('Logistic minimum')),
-                TextColumn::make('currency')->searchable()->toggleable()->label(__('Currency')),
+                TextColumn::make('id')
+                    ->label(__('ID'))
+                    ->sortable()
+                    ->searchable(),
+
+                TextColumn::make('name')
+                    ->label(__('Nazwa producenta'))
+                    ->sortable()
+                    ->searchable(),
+
+                TextColumn::make('email')
+                    ->label(__('Adres e-mail'))
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable(),
+
+                TextColumn::make('phone')
+                    ->label(__('Telefon kontaktowy'))
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable(),
+
+                TextColumn::make('delivery_time')
+                    ->label(__('Czas realizacji'))
+                    ->sortable()
+                    ->searchable()
+                    ->suffix(__(' dni'))
+                    ->toggleable(),
+
+                TextColumn::make('minimum_order_value')
+                    ->label(__('Minimalna wartość zamówienia'))
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable()
+                    ->prefix('PLN'),
             ])
             ->filters([
+                Filter::make('minimum_order_value_range')
+                    ->form([
+                        TextInput::make('min_value')
+                            ->label(__('Minimalna wartość zamówienia od'))
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('PLN'),
 
+                        TextInput::make('max_value')
+                            ->label(__('Minimalna wartość zamówienia do'))
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('PLN'),
+                    ])
+                    ->query(fn ($query, $data) => $query
+                        ->when($data['min_value'], fn ($q) => $q->where('minimum_order_value', '>=', $data['min_value']))
+                        ->when($data['max_value'], fn ($q) => $q->where('minimum_order_value', '<=', $data['max_value']))
+                    ),
+
+                Filter::make('delivery_time_range')
+                    ->form([
+                        TextInput::make('min_days')
+                            ->label(__('Czas realizacji od'))
+                            ->numeric()
+                            ->minValue(1)
+                            ->suffix(__(' dni')),
+
+                        TextInput::make('max_days')
+                            ->label(__('Czas realizacji do'))
+                            ->numeric()
+                            ->minValue(1)
+                            ->suffix(__(' dni')),
+                    ])
+                    ->query(fn ($query, $data) => $query
+                        ->when($data['min_days'], fn ($q) => $q->where('delivery_time', '>=', $data['min_days']))
+                        ->when($data['max_days'], fn ($q) => $q->where('delivery_time', '<=', $data['max_days']))
+                    ),
             ])
+
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->label(__('Edytuj')),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()->label(__('Usuń zaznaczone')),
                 ]),
             ]);
     }
